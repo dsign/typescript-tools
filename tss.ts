@@ -36,12 +36,12 @@ var EOL = require("os").EOL;
 class TSS {
   public compilationSettings: TypeScript.CompilationSettings;
   public typescriptLS : Harness.TypeScriptLS;
-  public ls : Services.ILanguageService;
+  public ls : TypeScript.Services.ILanguageService;
   public rootFile : TypeScript.IResolvedFile;
   public resolutionResult : TypeScript.ReferenceResolutionResult;
   public lastError;
 
-  constructor (public ioHost: IIO,public prettyJSON: boolean = false) { } // NOTE: call setup
+  constructor (public ioHost: TypeScript.IIO,public prettyJSON: boolean = false) { } // NOTE: call setup
 
   private fileNameToContent:TypeScript.StringHashTable<string>;
 
@@ -49,7 +49,7 @@ class TSS {
   getScriptSnapshot(filename: string): TypeScript.IScriptSnapshot {
       var content = this.fileNameToContent.lookup(filename);
       if (!content) {
-        content = readFile(filename).contents;
+        content = TypeScript.IO.readFile(filename, null).contents;
         this.fileNameToContent.add(filename,content);
       }
       var snapshot = TypeScript.ScriptSnapshot.fromString(content);
@@ -70,27 +70,28 @@ class TSS {
       if (TypeScript.isRooted(unQuotedPath) || !directory) {
           normalizedPath = unQuotedPath;
       } else {
-          normalizedPath = IOUtils.combine(directory, unQuotedPath);
+          normalizedPath = TypeScript.IOUtils.combine(directory, unQuotedPath);
       }
 
       // get the absolute path
-      normalizedPath = IO.resolvePath(normalizedPath);
+      normalizedPath = TypeScript.IO.resolvePath(normalizedPath);
 
       // Switch to forward slashes
-      normalizedPath = TypeScript.switchToForwardSlashes(normalizedPath)
-                           .replace(/^(.:)/,function(_,drive){return drive.toLowerCase()});
+      var someIntermediatePath : string = TypeScript.switchToForwardSlashes(normalizedPath);
+      normalizedPath = (<Function>(someIntermediatePath
+                           .replace))(/^(.:)/,function(_,drive){return drive.toLowerCase()});
 
       return normalizedPath;
   }
 
   fileExists(s: string):boolean {
-      return IO.fileExists(s);
+      return TypeScript.IO.fileExists(s);
   }
   directoryExists(path: string): boolean {
-      return IO.directoryExists(path);
+      return TypeScript.IO.directoryExists(path);
   }
   getParentDirectory(path: string): string {
-      return IO.dirName(path);
+      return TypeScript.IO.dirName(path);
   }
 
   // IDiagnosticReporter
@@ -98,14 +99,15 @@ class TSS {
       if (diagnostic.fileName()) {
           var scriptSnapshot = this.getScriptSnapshot(diagnostic.fileName());
           if (scriptSnapshot) {
-              var lineMap = new TypeScript.LineMap(scriptSnapshot.getLineStartPositions(), scriptSnapshot.getLength());
+              var lineMap = new TypeScript.LineMap(
+                ()=> scriptSnapshot.getLineStartPositions(), scriptSnapshot.getLength());
               var lineCol = { line: -1, character: -1 };
               lineMap.fillLineAndCharacterFromPosition(diagnostic.start(), lineCol);
-              IO.stderr.Write(diagnostic.fileName() + "(" + (lineCol.line + 1) + "," + (lineCol.character + 1) + "): ");
+              TypeScript.IO.stderr.Write(diagnostic.fileName() + "(" + (lineCol.line + 1) + "," + (lineCol.character + 1) + "): ");
           }
       }
 
-      IO.stderr.WriteLine(diagnostic.message());  // TODO: IO vs ioHost
+      TypeScript.IO.stderr.WriteLine(diagnostic.message());  // TODO: IO vs ioHost
   }
 
   /** load file and dependencies, prepare language service for queries */
@@ -122,7 +124,7 @@ class TSS {
     */
 
     this.typescriptLS = new Harness.TypeScriptLS();
-    this.fileNameToContent = new TypeScript.StringHashTable();
+    this.fileNameToContent = new TypeScript.StringHashTable<string>();
 
     // chase dependencies (references and imports)
     this.resolutionResult = TypeScript.ReferenceResolver
@@ -178,7 +180,7 @@ class TSS {
     var rl = readline.createInterface({input:process.stdin,output:process.stdout});
 
     var cmd:string, pos:number, file:string, script, added:boolean, range:boolean, check:boolean
-      , def, refs:Services.ReferenceEntry[], locs:Services.DefinitionInfo[], info, source:string
+      , def, refs:TypeScript.Services.ReferenceEntry[], locs:TypeScript.Services.DefinitionInfo[], info, source:string
       , brief, member:boolean;
 
     var collecting = 0, on_collected_callback:()=>void, lines:string[] = [];
@@ -503,11 +505,11 @@ class TSS {
   }
 }
 
-if (IO.arguments.indexOf("--version")!==-1) {
+if (TypeScript.IO.arguments.indexOf("--version")!==-1) {
   console.log(require("../package.json").version);
   process.exit(0);
 }
 
-var tss = new TSS(IO);
-tss.setup(IO.arguments[0]);
+var tss = new TSS(TypeScript.IO);
+tss.setup(TypeScript.IO.arguments[0]);
 tss.listen();
